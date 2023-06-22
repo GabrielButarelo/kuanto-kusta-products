@@ -1,7 +1,14 @@
 import { Model } from 'mongoose';
-import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { Product } from './interfaces/product.interface';
 import { CreateProductDto } from './dto/createProduct.dto';
+import { ICreateProductResponse } from './interfaces/createProductResponse.interface';
+import { IListAllProductsResponse } from './interfaces/listAllProducts.interface';
 
 @Injectable()
 export class ProductsService {
@@ -10,7 +17,9 @@ export class ProductsService {
     private readonly productModel: Model<Product>,
   ) {}
 
-  async createProduct(data: CreateProductDto) {
+  async createProduct(
+    data: CreateProductDto,
+  ): Promise<InternalServerErrorException | ICreateProductResponse> {
     try {
       const productExists = await this.productModel
         .find({
@@ -19,25 +28,37 @@ export class ProductsService {
         .exec();
 
       if (productExists.length)
-        return new HttpException(
-          'Product Id already exists',
-          HttpStatus.NOT_ACCEPTABLE,
-        );
+        throw new BadRequestException('Product id already exists');
 
-      return await this.productModel.create({
+      await this.productModel.create({
         productId: data.productId,
         price: data.price,
       });
+
+      return {
+        message: 'Product created!',
+      };
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+      return new InternalServerErrorException(error.message);
     }
   }
 
-  async listAllProducts() {
+  async listAllProducts(): Promise<
+    InternalServerErrorException | IListAllProductsResponse[]
+  > {
     try {
-      return await this.productModel.find().exec();
+      const allProducts = await this.productModel.find().exec();
+
+      const products = allProducts.map((product) => {
+        return {
+          productId: product.productId,
+          price: product.price,
+        };
+      });
+
+      return products;
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.INTERNAL_SERVER_ERROR);
+      return new InternalServerErrorException(error.message);
     }
   }
 }
